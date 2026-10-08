@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Cassino VIP Blackjack & Pôquer</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1a4d13; color: white; text-align: center; margin: 0; padding: 20px; }
+        .caixa { background: #12380d; padding: 20px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .mesa { display: flex; flex-direction: column; align-items: center; gap: 15px; display: none; }
+        .jogadores-container { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .jogador { background: rgba(0,0,0,0.45); padding: 12px; border-radius: 10px; min-width: 150px; border: 1px solid #2d6b23; position: relative; }
+        .turno-ativo { border: 2px solid #f1c40f; background: rgba(241, 196, 15, 0.2); }
+        
+        .papel-badge { position: absolute; top: -10px; right: -10px; background: white; color: black; border-radius: 50%; width: 25px; height: 25px; font-weight: bold; display: flex; align-items: center; justify-content: center; border: 2px solid #333; font-size: 11px; }
+        .papel-D { background: #f1c40f; } .papel-SB { background: #3498db; color: white; } .papel-BB { background: #e74c3c; color: white; }
+
+        .cartas { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+        .carta { width: 45px; height: 65px; background: white; color: black; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 1px 1px 4px rgba(0,0,0,0.3); }
+        .vermelha { color: red; }
+        .escondida { background-color: #0b2b06; color: transparent; border: 1px solid #1a4d13; }
+        
+        .chip-container { display: flex; gap: 8px; justify-content: center; margin: 10px 0; flex-wrap: wrap; }
+        .chip { width: 42px; height: 42px; border-radius: 50%; border: 3px dashed white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; cursor: pointer; color: white; text-shadow: 1px 1px 2px black; transition: 0.1s; }
+        .chip:hover { transform: scale(1.1); }
+        .chip-05 { background: #8e44ad; } .chip-1 { background: #3498db; } .chip-25 { background: #1abc9c; }
+        .chip-5 { background: #e74c3c; } .chip-10 { background: #e67e22; } .chip-25c { background: #2ecc71; } .chip-100 { background: #34495e; }
+
+        button { padding: 10px 16px; cursor: pointer; background: #f1c40f; border: none; font-weight: bold; border-radius: 5px; margin: 4px; color: #111; }
+        button:hover { background: #f39c12; }
+        .controles { display: none; margin-top: 10px; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 10px; }
+        input, select { padding: 8px; border-radius: 5px; border: none; margin: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="caixa" id="tela-login">
+        <h1>Cassino VIP</h1>
+        <input type="text" id="input-nome" placeholder="Seu Nome"><br>
+        <input type="text" id="input-sala" placeholder="Código da Sala"><br>
+        <select id="select-jogo" style="width: 170px;">
+            <option value="blackjack">Blackjack (7 Vagas)</option>
+            <option value="poker">Texas Hold'em (9 Vagas)</option>
+        </select><br>
+        <label style="font-size: 13px;">Banca Inicial (Definida pelo Host):</label><br>
+        <input type="number" id="input-banca" value="1000" step="50"><br><br>
+        <button onclick="conectar()">Entrar na Mesa</button>
+    </div>
+
+    <div class="mesa" id="tela-jogo">
+        <h2>Sala: <span id="sala-id-display"></span></h2>
+        
+        <div id="area-comunitaria" class="jogador">
+            <h3 id="titulo-centro">Mesa</h3>
+            <div id="cartas-centro" class="cartas"></div>
+            <h4 id="info-pote" style="color:#f1c40f; display:none;"></h4>
+        </div>
+
+        <div id="area-jogadores" class="jogadores-container"></div>
+
+        <!-- Painel de Apostas Blackjack -->
+        <div id="painel-apostas" class="controles" style="display:none;">
+            <h3>Fase de Apostas</h3>
+            <div class="chip-container">
+                <div class="chip chip-05" onclick="selecionarFicha(0.5)">0.5</div>
+                <div class="chip chip-1" onclick="selecionarFicha(1)">1</div>
+                <div class="chip chip-25" onclick="selecionarFicha(2.5)">2.5</div>
+                <div class="chip chip-5" onclick="selecionarFicha(5)">5</div>
+                <div class="chip chip-10" onclick="selecionarFicha(10)">10</div>
+                <div class="chip chip-25c" onclick="selecionarFicha(25)">25</div>
+                <div class="chip chip-100" onclick="selecionarFicha(100)">100</div>
+            </div>
+            <p>Ficha: <b><span id="ficha-ativa">10</span></b></p>
+            <div>
+                Principal: <b><span id="val-p">0</span></b> <button onclick="addAposta('p')">+</button> | 
+                Pairs: <b><span id="val-pp">0</span></b> <button onclick="addAposta('pp')">+</button> | 
+                21+3: <b><span id="val-21">0</span></b> <button onclick="addAposta('21')">+</button>
+            </div><br>
+            <div>
+                Bet Behind: <b><span id="val-bb">0</span></b> <button onclick="addAposta('bb')">+</button> em:
+                <select id="select-bet-behind"></select>
+            </div><br>
+            <button onclick="enviarAposta()" style="background:#2ecc71; color:white;">Confirmar Apostas</button>
+            <button onclick="limparApostas()" style="background:#e74c3c; color:white;">Limpar</button>
+        </div>
+
+        <button id="btn-iniciar" onclick="comecarRodada()" style="display:none; background:#2ecc71; color:white; font-size:18px;">Iniciar Rodada (Host)</button>
+
+        <!-- Controles Poker -->
+        <div id="controles-poker" class="controles" style="display:none;">
+            <h3>Sua Vez (Pôquer)</h3>
+            <button onclick="pokerAcao('fold')" style="background:#e74c3c; color:white;">Fold</button>
+            <button id="btn-check" onclick="pokerAcao('check')" style="background:#3498db; color:white;">Check</button>
+            <button id="btn-call" onclick="pokerAcao('call')" style="background:#2ecc71; color:white;">Call</button>
+            <button onclick="pokerAcao('allin')" style="background:#8e44ad; color:white;">All-in</button><br><br>
+            <input type="number" id="input-raise" placeholder="Valor" style="width:70px;">
+            <button onclick="fazerRaise()" style="background:#e67e22; color:white;">Raise</button>
+        </div>
+
+        <!-- Controles Blackjack -->
+        <div id="controles-blackjack" class="controles" style="display:none;">
+            <h3>Sua Vez (Blackjack)</h3>
+            <button onclick="pedirCarta()">Pedir Carta (Hit)</button>
+            <button onclick="parar()">Parar (Stand)</button>
+            <button onclick="dobrar()" style="background:#e67e22; color:white;">Dobrar (Double)</button>
+            <button onclick="dividir()" style="background:#9b59b6; color:white;">Dividir (Split)</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let minhaSala = '';
+        let meuId = '';
+        let fichaSelecionada = 10;
+        let apostaP = 0, apostaPP = 0, aposta21 = 0, apostaBB = 0;
+
+        function conectar() {
+            const nome = document.getElementById('input-nome').value;
+            const tipoJogo = document.getElementById('select-jogo').value;
+            const bancaInicial = document.getElementById('input-banca').value;
+            minhaSala = document.getElementById('input-sala').value.toUpperCase();
+            
+            socket.emit('entrarSala', { nome, salaId: minhaSala, tipoJogo, bancaInicial });
+            document.getElementById('tela-login').style.display = 'none';
+            document.getElementById('tela-jogo').style.display = 'flex';
+            document.getElementById('sala-id-display').innerText = minhaSala;
+        }
+
+        socket.on('connect', () => meuId = socket.id);
+        socket.on('erroEntrada', (msg) => {
+            alert(msg);
+            document.getElementById('tela-login').style.display = 'inline-block';
+            document.getElementById('tela-jogo').style.display = 'none';
+        });
+
+        function selecionarFicha(val) { fichaSelecionada = val; document.getElementById('ficha-ativa').innerText = val; }
+        function addAposta(tipo) {
+            if (tipo === 'p') apostaP += fichaSelecionada;
+            if (tipo === 'pp') apostaPP += fichaSelecionada;
+            if (tipo === '21') aposta21 += fichaSelecionada;
+            if (tipo === 'bb') apostaBB += fichaSelecionada;
+            atualizarDisplaysAposta();
+        }
+        function limparApostas() {
+            apostaP = 0; apostaPP = 0; aposta21 = 0; apostaBB = 0;
+            atualizarDisplaysAposta();
+        }
+        function atualizarDisplaysAposta() {
+            document.getElementById('val-p').innerText = apostaP;
+            document.getElementById('val-pp').innerText = apostaPP;
+            document.getElementById('val-21').innerText = aposta21;
+            document.getElementById('val-bb').innerText = apostaBB;
+        }
+        function enviarAposta() {
+            socket.emit('fazerAposta', {
+                salaId: minhaSala, apostaPrincipal: apostaP, sidePP: apostaPP,
+                side21: aposta21, targetBetBehind: document.getElementById('select-bet-behind').value,
+                apostaBetBehind: apostaBB
+            });
+        }
+
+        function criarHTMLCarta(carta) {
+            if (carta.valor === '?') return `<div class="carta escondida"></div>`;
+            const cor = (carta.naipe === 'h' || carta.naipe === 'd' || carta.naipe === '♥' || carta.naipe === '♦') ? 'vermelha' : '';
+            const naipeStr = { 's':'♠', 'h':'♥', 'd':'♦', 'c':'♣' }[carta.naipe] || carta.naipe;
+            const valorStr = carta.valor === 'T' ? '10' : carta.valor;
+            return `<div class="carta ${cor}">${valorStr}${naipeStr}</div>`;
+        }
+
+        socket.on('estadoDaMesa', (sala) => {
+            const containerJogadores = document.getElementById('area-jogadores');
+            const divCentro = document.getElementById('cartas-centro');
+            const btnIniciar = document.getElementById('btn-iniciar');
+            const painelApostas = document.getElementById('painel-apostas');
+            const ctrlPoker = document.getElementById('controles-poker');
+            const ctrlBJ = document.getElementById('controles-blackjack');
+            const infoPote = document.getElementById('info-pote');
+            const tituloCentro = document.getElementById('titulo-centro');
+            const selectBB = document.getElementById('select-bet-behind');
+
+            containerJogadores.innerHTML = '';
+            divCentro.innerHTML = '';
+            selectBB.innerHTML = '<option value="">Ninguém</option>';
+
+            if (sala.tipoJogo === 'poker') {
+                tituloCentro.innerText = 'Cartas Comunitárias';
+                infoPote.style.display = 'block';
+                infoPote.innerText = `Fase: ${sala.fase.toUpperCase()} | Pote: $${sala.pote} | Aposta Atual: $${sala.apostaMesa}`;
+                if (sala.cartasComunitarias) sala.cartasComunitarias.forEach(c => divCentro.innerHTML += criarHTMLCarta(c));
+            } else {
+                tituloCentro.innerText = 'Banca';
+                infoPote.style.display = 'none';
+                if (sala.maoBanca && sala.maoBanca.length > 0) {
+                    divCentro.innerHTML += criarHTMLCarta(sala.maoBanca[0]);
+                    if (sala.status === 'jogando') divCentro.innerHTML += `<div class="carta escondida"></div>`;
+                    else for (let i = 1; i < sala.maoBanca.length; i++) divCentro.innerHTML += criarHTMLCarta(sala.maoBanca[i]);
+                }
+            }
+
+            sala.jogadores.forEach((j, idx) => {
+                const ehTurno = (sala.status === 'jogando' && idx === sala.turnoIndex && !j.allIn);
+                let html = `<div class="jogador ${ehTurno ? 'turno-ativo' : ''}">`;
+                
+                if (sala.tipoJogo === 'poker' && j.papel) html += `<div class="papel-badge papel-${j.papel}">${j.papel}</div>`;
+                
+                html += `<h4>${j.nome} ${j.id === socket.id ? '(Você)' : ''}</h4><p>Fichas: $${j.fichas}</p>`;
+
+                if (sala.tipoJogo === 'poker') {
+                    html += `<p style="font-size:11px; color:#aaa;">(Apostou: $${j.apostaAtual || 0})</p>`;
+                    if (j.desistiu) html += `<p style="color:#e74c3c; font-weight:bold;">FOLD</p>`;
+                    else if (j.allIn) html += `<p style="color:#8e44ad; font-weight:bold;">ALL-IN</p>`;
+                    else {
+                        html += `<div class="cartas">`;
+                        if (j.mao) j.mao.forEach(c => html += criarHTMLCarta(c));
+                        html += `</div>`;
+                    }
+                } else {
+                    if (j.id !== socket.id) selectBB.innerHTML += `<option value="${j.id}">${j.nome}</option>`;
+                    if (j.maos) j.maos.forEach((m, mIdx) => {
+                        html += `<div style="border-top:1px solid #555; margin-top:5px;"><small>Mão ${mIdx+1} ($${m.aposta})</small><div class="cartas">`;
+                        m.cartas.forEach(c => html += criarHTMLCarta(c));
+                        html += `</div>`;
+                        if (m.resultado) html += `<p style="color:yellow; font-weight:bold;">${m.resultado}</p>`;
+                        html += `</div>`;
+                    });
+                    if (j.mensagensSide) html += `<small style="color:#2ecc71">${j.mensagensSide}</small>`;
+                }
+
+                if (j.resultado && sala.tipoJogo === 'poker') html += `<p style="color:#2ecc71; font-weight:bold; margin-top:5px;">${j.resultado}</p>`;
+                html += `</div>`;
+                containerJogadores.innerHTML += html;
+
+                if (j.id === socket.id) {
+                    if (sala.tipoJogo === 'blackjack') {
+                        ctrlBJ.style.display = ehTurno ? 'block' : 'none';
+                        ctrlPoker.style.display = 'none';
+                    } else {
+                        ctrlBJ.style.display = 'none';
+                        if (ehTurno) {
+                            ctrlPoker.style.display = 'block';
+                            const diferenca = sala.apostaMesa - j.apostaAtual;
+                            document.getElementById('btn-check').style.display = (diferenca === 0) ? 'inline-block' : 'none';
+                            const btnCall = document.getElementById('btn-call');
+                            if (diferenca > 0) {
+                                btnCall.style.display = 'inline-block';
+                                btnCall.innerText = `Call ($${diferenca})`;
+                            } else btnCall.style.display = 'none';
+                        } else ctrlPoker.style.display = 'none';
+                    }
+                }
+            });
+
+            painelApostas.style.display = (sala.tipoJogo === 'blackjack' && sala.status === 'apostas') ? 'block' : 'none';
+            btnIniciar.style.display = (socket.id === sala.hostId && (sala.status === 'lobby' || sala.status === 'apostas' || sala.status === 'finalizado')) ? 'block' : 'none';
+            btnIniciar.innerText = sala.tipoJogo === 'blackjack' && sala.status === 'apostas' ? 'Distribuir Cartas (Host)' : 'Iniciar Rodada (Host)';
+        });
+
+        function comecarRodada() { socket.emit('comecarRodada', minhaSala); }
+        function pedirCarta() { socket.emit('pedirCarta', minhaSala); }
+        function parar() { socket.emit('parar', minhaSala); }
+        function dobrar() { socket.emit('dobrar', minhaSala); }
+        function dividir() { socket.emit('dividir', minhaSala); }
+        function pokerAcao(acao) { socket.emit('pokerAcao', { salaId: minhaSala, acao, valor: 0 }); }
+        function fazerRaise() { 
+            const val = document.getElementById('input-raise').value;
+            if (val) socket.emit('pokerAcao', { salaId: minhaSala, acao: 'raise', valor: val }); 
+            document.getElementById('input-raise').value = '';
+        }
+    </script>
+</body>
+</html>
